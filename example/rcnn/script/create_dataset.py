@@ -5,8 +5,8 @@ import sys
 import tarfile
 import cv2
 
-input_path = '/home/max/workspace/mxnet/example/rcnn/new_data/VOCdevkit/VOC2007'
-outdir = '/home/max/workspace/mxnet/example/rcnn/new_data/VOCdevkit/VOC2007/Raw/Out/'
+input_path = '/home/ubuntu/workspace/mxnet/example/rcnn/new_data/VOCdevkit/VOC2007'
+outdir = '/home/ubuntu/workspace/mxnet/example/rcnn/new_data/VOCdevkit/VOC2007/Raw/Out/'
 
 def extract_folders(indir):
 	for root, dirs, filenames in os.walk(indir):
@@ -101,6 +101,10 @@ def create_xml(df):
 					ET.SubElement(bndbox, "ymin").text = str(y_1)
 					ET.SubElement(bndbox, "xmax").text = str(x_2)
 					ET.SubElement(bndbox, "ymax").text = str(y_2)
+		size = ET.SubElement(annotation, "size")
+		ET.SubElement(size, "width").text = str(row[-1])
+		ET.SubElement(size, "height").text = str(row[-2])
+		#ET.SubElement(size, "depth").text = "3"
 
 		tree = ET.ElementTree(annotation)
 		tree.write(os.path.join(input_path, "Annotations", output_filename), xml_declaration=True, encoding='utf-8')
@@ -214,6 +218,7 @@ def create_dataset():
 	#	print(df)
 
 	# Iterate over DF and change % to pixel and normalize classes
+	size_list = []
 	for index, row in df.iterrows():
 		#print(index, row)
 		for column_index, item in enumerate(row):
@@ -226,6 +231,10 @@ def create_dataset():
 				size = cv2.imread(os.path.join(input_path, "JPEGImages", item)).shape
 				height = size[0]
 				width = size[1]
+				tmp_size_list = []
+				tmp_size_list.append(height)
+				tmp_size_list.append(width)
+				size_list.append(tmp_size_list)
 				#print(height, width)
 			elif isinstance(item, list):
 				#print('List item: ' + str(item))
@@ -261,10 +270,16 @@ def create_dataset():
 					print("ERROR!!!")
 	print(df)
 	df.to_pickle('meta_dataframe.csv')
+	print(size_list)
+	df_size = pd.DataFrame(size_list, columns=['Height', 'Width'])
+	print(df_size)
+	df_merged = pd.concat([df, df_size], axis=1)
+	print(df_merged)
+	print(df_merged.shape)
 
 	# 5) Create the .xml file for every image
 	print('***** PART 5 - CREATE XML FILES *****')
-	create_xml(df)
+	create_xml(df_merged)
 
 	# 6) Create training and test data set
 	# Randomly sample 60% of your dataframe

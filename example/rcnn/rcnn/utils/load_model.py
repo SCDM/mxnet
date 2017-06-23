@@ -12,6 +12,11 @@ def load_checkpoint(prefix, epoch):
     aux_params : dict of str to NDArray
         Model parameter, dict of name to NDArray of net's auxiliary states.
     """
+    print(prefix)
+    if 'model' in prefix:
+        prefix_split = prefix.split('/')
+        prefix = prefix_split[1]
+    print(prefix)
     save_dict = mx.nd.load('/home/ubuntu/workspace/mxnet/example/rcnn/model/' + '%s-%04d.params' % (prefix, epoch))
     arg_params = {}
     aux_params = {}

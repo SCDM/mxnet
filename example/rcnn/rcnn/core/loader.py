@@ -76,7 +76,7 @@ class TestLoader(mx.io.DataIter):
         else:
             return 0
 
-    def get_batch(self):
+    def SLICES(self):
         cur_from = self.cur
         cur_to = min(cur_from + self.batch_size, self.size)
         roidb = [self.roidb[self.index[i]] for i in range(cur_from, cur_to)]

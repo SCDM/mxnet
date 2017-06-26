@@ -4,6 +4,8 @@ import zipfile
 import sys
 import tarfile
 import cv2
+import errno
+
 
 input_path = '/home/ubuntu/workspace/mxnet/example/rcnn/new_data/VOCdevkit/VOC2007'
 outdir = '/home/ubuntu/workspace/mxnet/example/rcnn/new_data/VOCdevkit/VOC2007/Raw/Out/'
@@ -15,9 +17,15 @@ def extract_folders(indir):
 		for f in filenames:
 			#print(f)
 			if f.endswith('.zip'):
-				tar = tarfile.open(indir + str(f))
-				tar.extractall(path=outdir)
-				tar.close()
+				try:
+					tar = tarfile.open(indir + str(f))
+					tar.extractall(path=outdir)
+					tar.close()
+				except OSError as oserr:
+					if oserr.errno != errno.ENAMETOOLONG:
+						continue# ignore
+					else:
+						print('File Name too long! - ' + str(f))
 
 
 def rename_filenames(outdir):
@@ -37,8 +45,10 @@ def rename_filenames(outdir):
 			if name.endswith('.json'):
 				json_name = name
 			if name.endswith('.jpeg'):
+				normalized_name = name.replace('.jpeg', '.jpg')
+				os.rename(os.path.join(path,name), os.path.join(path, normalized_name))
+				name = normalized_name
 				tmp_file_list.append(name)
-            	#file_name, file_ending = name.split('.jpeg')
 		tmp_file_list.append(path)
 		if 'json_name' in locals():
 			tmp_file_list.append(json_name)
@@ -59,7 +69,7 @@ def create_xml(df):
 			if isinstance(item, str):
 				#print("File Name: " + item)
 				file_name = item
-				output_filename = file_name.replace(".jpeg", ".xml")
+				output_filename = file_name.replace(".jpg", ".xml")
 
 				annotation = ET.Element("annotation")
 				ET.SubElement(annotation, "folder").text = "VOC2007"
@@ -117,6 +127,7 @@ def read_json(json_file):
 	with open(json_file) as data_file:
 		data = json.load(data_file)
 	#pprint(data)
+	found_valid_value = False
 	dict = {}
 
 	if 'pdf' in data:
@@ -135,6 +146,9 @@ def read_json(json_file):
 					name = entry.get("name")
 				elif 'fileName' in sub_item:
 					file_name = entry.get("fileName")
+					if file_name.endswith('.jpeg'):
+						file_name = file_name.replace('.jpeg', '.jpg')
+					found_valid_value = True
 				elif 'x' in sub_item:
 					x_1 = entry.get("x")
 				elif 'y' in sub_item:
@@ -143,15 +157,17 @@ def read_json(json_file):
 					width = entry.get("width")
 				elif 'height' in sub_item:
 					height = entry.get("height")
-			if 'file_name' in locals():
+			if found_valid_value == True:
 				if pdf_name.endswith('.pdf'):
 					pdf_name = pdf_name.replace('.pdf','')
 				elif pdf_name.endswith('.PDF'):
 					pdf_name = pdf_name.replace('.PDF','')
 				key = pdf_name + '_' + file_name + '_' + name
 				dict[key] = [x_1, y_1, width, height, name]
+				found_valid_value = False
 	#print(dict)
 	return dict
+
 
 def create_dataset():
 	"""
@@ -166,7 +182,7 @@ def create_dataset():
 	extract_folders(zip_path)
 
 	# 2 Get the name from the pdf file and images
-	print(outdir)
+	print('Output directory: ' + str(outdir))
 	file_list = rename_filenames(outdir)
 	print('File list: ' + str(file_list))
 
@@ -182,19 +198,18 @@ def create_dataset():
 		path = file[-3]
 
 		for item in file[:-3]:
-			print(item)
+			#print(item)
 			os.rename(os.path.join(path,item), os.path.join(path, item.replace(item, pdf_name + '_' + item)))
 			renamed_file_list.append(pdf_name + '_' + item)
 			# Move the file to the JPEGImages folder
 			os.rename(os.path.join(path, pdf_name + '_' + item), os.path.join(input_path, "JPEGImages", pdf_name + '_' + item))
-			# TODO: Append to renamed_file_list without jpeg
 		# Read the json file
 		json_dictionary = read_json(os.path.join(path, json_name))
 		json_dictionary_list.append(json_dictionary)
 
 	print('********* FILE LIST *********')
 	print(renamed_file_list)
-	#print(json_dictionary_list)
+	print(json_dictionary_list)
 
 	# Merge the file and json list
 	final_list = []
@@ -211,6 +226,7 @@ def create_dataset():
 					tmp_final_list.append(value)
 					#break
 		final_list.append(tmp_final_list)
+	print('********* MERGED FILE LIST *********')
 	print(final_list)
 
 	# Convert list into pandas dataframe
@@ -241,16 +257,21 @@ def create_dataset():
 				# Check if the length is as expected
 				if len(item) == 5:
 					#print(item[0])
-					item[0] = float(item[0].replace("%", ""))*0.01 * width
+					item[0] = int(float(item[0].replace("%", ""))*0.01 * width)
 					#print(item[0])
 					#print(item[1])
-					item[1] = float(item[1].replace("%", ""))*0.01 * height
+					item[1] = int(float(item[1].replace("%", ""))*0.01 * height)
 					#print(item[1])
 					#print(item[2])
-					item[2] = item[0] + (float(item[2].replace("%", ""))*0.01 * width)
+					item[2] = item[0] + (int(float(item[2].replace("%", ""))*0.01 * width))
+					if item[2] > width:
+						print('!!! TOO LARGE !!!')
+						#print(width)
+						#print(item[2])
+						item[2] = width
 					#print(item[2])
 					#print(item[3])
-					item[3] = item[1] + (float(item[3].replace("%", ""))*0.01 * height)
+					item[3] = item[1] + (int(float(item[3].replace("%", ""))*0.01 * height))
 					#print(item[3])
 					#print(item[4])
 					# Normalize the classes
@@ -268,12 +289,16 @@ def create_dataset():
 					df.iloc[index, column_index] = tmp_position_list
 				else:
 					print("ERROR!!!")
+
+	print('********* DATA FRAME *********')
 	print(df)
 	df.to_pickle('meta_dataframe.csv')
-	print(size_list)
+	print('Size list: ' + str(size_list))
+	print('********* IMAGE SIZE DATA FRAME *********')
 	df_size = pd.DataFrame(size_list, columns=['Height', 'Width'])
 	print(df_size)
 	df_merged = pd.concat([df, df_size], axis=1)
+	print('********* MERGED DATA FRAME *********')
 	print(df_merged)
 	print(df_merged.shape)
 
@@ -286,13 +311,13 @@ def create_dataset():
 	print('***** PART 6 - DATASET GENERATION *****')
 	#print(df.iloc[:,0])
 	#print(df[0])
-	new_df = df[0].apply(lambda x: x.replace(".jpeg", ""))
+	new_df = df[0].apply(lambda x: x.replace(".jpg", ""))
 	#new_df.to_csv(os.path.join(input_path,'ImageSets','Main','dataframe.csv'))
 
 	df_trainval = new_df.sample(frac=0.6)
 	df_test = new_df.loc[~new_df.index.isin(df_trainval.index)]
-	print(df_trainval.shape)
-	print(df_test.shape)
+	print("Training Data shape: " + str(df_trainval.shape))
+	print("Test Data shape: " + str(df_test.shape))
 
 	# Write training and test files out
 	df_trainval.to_csv(os.path.join(input_path,'ImageSets','Main','trainval.txt'), header=None, index=None, sep=' ', mode='a')

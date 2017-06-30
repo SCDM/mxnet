@@ -2,6 +2,22 @@
 
 ![example detections](https://cloud.githubusercontent.com/assets/13162287/22101032/92085dc0-de6c-11e6-9228-67e72606ddbc.png)
 
+## Requirements
+See if `bash script/additional_deps.sh` will do the following for you.
+
+Install python package `cython easydict matplotlib scikit-image`.
+
+Install the following packages:
+* pip install mxnet-cu80
+* pip install opencv-python
+* Jupyter notebook
+* sudo apt-get -y install ipython ipython-notebook
+* sudo pip install jupyter
+
+In order to run gpu support, install Cuda and Cudnn
+* Cuda 8.0
+* Cudnn 5.1
+
 ## Why?
 There exist good implementations of Faster R-CNN yet they lack support for recent 
 ConvNet architectures. The aim of reproducing it from scratch is to fully utilize 

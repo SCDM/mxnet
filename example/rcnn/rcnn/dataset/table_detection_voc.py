@@ -35,7 +35,8 @@ class TableDetectionVOC(IMDB):
 
         self.classes = ['__background__',  # always index 0
                         'mk-1', 'mk-2', 'mk-3', 'mk-65',
-                        'mk-96']
+                        'mk-96', 'mk-6', 'mk-8', 'mk-7', 
+                        'mk-46', 'mk-23', 'mk-18', 'mk-148']
         self.num_classes = len(self.classes)
         self.image_set_index = self.load_image_set_index()
         self.num_images = len(self.image_set_index)
@@ -110,7 +111,13 @@ class TableDetectionVOC(IMDB):
             non_diff_objs = [obj for obj in objs if int(obj.find('difficult').text) == 0]
             objs = non_diff_objs
         num_objs = len(objs)
-
+        file_name = tree.find('filename')
+        print('name: ' + str(file_name))
+        print('height: ' + str(roi_rec['height']))
+        print('width: ' + str(roi_rec['width']))
+        print('# classes: ' + str(self.num_classes))
+        print('# objects: ' + str(num_objs))
+        print('Classes: ' + str(self.classes))
         boxes = np.zeros((num_objs, 4), dtype=np.uint16)
         gt_classes = np.zeros((num_objs), dtype=np.int32)
         overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
@@ -120,14 +127,29 @@ class TableDetectionVOC(IMDB):
         for ix, obj in enumerate(objs):
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
+            #x1 = float(bbox.find('xmin').text)
+            #y1 = float(bbox.find('ymin').text)
+            #x2 = float(bbox.find('xmax').text)
+            #y2 = float(bbox.find('ymax').text)
+            print('BBOX')
             x1 = float(bbox.find('xmin').text) - 1
             y1 = float(bbox.find('ymin').text) - 1
             x2 = float(bbox.find('xmax').text) - 1
             y2 = float(bbox.find('ymax').text) - 1
+            if x1 < 0:
+                x1 = 0
+            if y1 < 0:
+                y1 = 0
+            if x2 < 0:
+                x2 = 0
+            if y2 < 0:
+                y2 = 0
+            print(x1, y1, x2, y2)
             cls = class_to_index[obj.find('name').text.lower().strip()]
             boxes[ix, :] = [x1, y1, x2, y2]
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
+            print(cls)
 
         roi_rec.update({'boxes': boxes,
                         'gt_classes': gt_classes,

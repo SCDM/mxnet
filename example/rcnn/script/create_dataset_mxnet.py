@@ -1,14 +1,26 @@
 import os
+import shutil
 import pandas as pd
 import zipfile
 import sys
 import tarfile
 import cv2
 import errno
+from optparse import OptionParser
 
 
-input_path = '/home/ubuntu/workspace/mxnet/example/rcnn/new_data/VOCdevkit/VOC2007'
-outdir = '/home/ubuntu/workspace/mxnet/example/rcnn/new_data/VOCdevkit/VOC2007/Raw/Out/'
+parser = OptionParser()
+parser.add_option("-l", "--library", dest="library", help="Name of the library used (mxnet or keras")
+parser.add_option("-i", "--input-folder", dest="input_folder", help="Data input folder")
+parser.add_option("-t", "--task", dest="task", help="Task type (table or value)")
+parser.add_option("-r", "--resize", dest="resize", default = False, help="Define if you want to resize the image")
+(options, args) = parser.parse_args()
+
+dir_path = os.path.dirname(os.path.realpath(__file__))
+dir_split = dir_path.split('script')
+
+input_path = os.path.join(dir_split[0], options.input_folder)
+outdir = os.path.join(dir_split[0], options.input_folder, 'Raw', 'Out')
 
 def extract_folders(indir):
 	for root, dirs, filenames in os.walk(indir):
@@ -120,6 +132,30 @@ def create_xml(df):
 		tree.write(os.path.join(input_path, "Annotations", output_filename), xml_declaration=True, encoding='utf-8')
 
 
+def create_txt(df):
+	''' 
+	filepath,x1,y1,x2,y2,class_name
+	/data/imgs/img_001.jpg,837,346,981,456,cow
+	'''
+	with open('training_data.txt', 'a') as the_file:
+		for index, row in df.iterrows():
+			print(index, row)
+			for item in row:
+				print(item)
+				if isinstance(item, str):
+					print("File Name: " + item)
+					file_name = '/home/ubuntu/workspace/keras-frcnn/data/train_data/' + item
+				if isinstance(item, list):
+					#print("List Name: " + str(item))
+					if len(item) == 5:
+						x_1 = item[0]
+						y_1 = item[1]
+						x_2 = item[2]
+						y_2 = item[3]
+						class_name = item[4]
+			the_file.write(file_name + ',' + str(x_1) + ',' + str(y_1) + ',' + str(x_2) + ',' + str(y_2) + ',' + class_name + '\n')
+
+
 def read_json(json_file):
 	import json
 	from pprint import pprint
@@ -128,6 +164,7 @@ def read_json(json_file):
 		data = json.load(data_file)
 	#pprint(data)
 	found_valid_value = False
+	correct_class = False
 	dict = {}
 
 	if 'pdf' in data:
@@ -158,6 +195,13 @@ def read_json(json_file):
 				elif 'height' in sub_item:
 					height = entry.get("height")
 			if found_valid_value == True:
+				if options.task == 'value':
+					if 'mk-' in name:
+						correct_class = True
+				elif options.task == 'table':
+					if 'column' in name or 'row' in name or 'header' in name or 'table' in name:
+						correct_class = True
+			if correct_class == True:
 				if pdf_name.endswith('.pdf'):
 					pdf_name = pdf_name.replace('.pdf','')
 				elif pdf_name.endswith('.PDF'):
@@ -165,6 +209,7 @@ def read_json(json_file):
 				key = pdf_name + '_' + file_name + '_' + name
 				dict[key] = [x_1, y_1, width, height, name]
 				found_valid_value = False
+				correct_class = False
 	#print(dict)
 	return dict
 
@@ -175,18 +220,21 @@ def create_dataset():
     :param input_path: The path to the zip folders
     :return: None
     """
-
+	print('***** PART 1 - UNZIPPING FILES *****')
+	print(options.library)
 	# 1 Unzip folder
 	zip_path = os.path.join(input_path, 'Raw/')
 	assert os.path.exists(zip_path), 'Path does not exist: {}'.format(zip_path)
 	extract_folders(zip_path)
 
 	# 2 Get the name from the pdf file and images
+	print('***** PART 2 - GET FILE NAMES *****')
 	print('Output directory: ' + str(outdir))
 	file_list = rename_filenames(outdir)
 	print('File list: ' + str(file_list))
 
 	# 3 With 2 + 3 - Create: trainval.txt and test.txt
+	print('***** PART 3 - CREATE FILES *****')
 	renamed_file_list = []
 	json_dictionary_list = []
 
@@ -233,49 +281,68 @@ def create_dataset():
 	df = pd.DataFrame(final_list)
 	#	print(df)
 
+	print('********* FILLING DATA FRAME *********')
 	# Iterate over DF and change % to pixel and normalize classes
 	size_list = []
 	for index, row in df.iterrows():
 		#print(index, row)
 		for column_index, item in enumerate(row):
-			#print(item)
-			#print(type(item))
-			#print('*****')
-			#print(df.iloc[index, column_index])
-			#print('*****')
 			if isinstance(item, str):
-				size = cv2.imread(os.path.join(input_path, "JPEGImages", item)).shape
-				height = size[0]
-				width = size[1]
+				img = cv2.imread(os.path.join(input_path, "JPEGImages", item))
+				if options.resize != False:
+					#resized_image = cv2.resize(image, (100, 50))
+					smaller_image = cv2.resize(img, (0,0), fx=0.3, fy=0.3, interpolation = cv2.INTER_AREA)
+					smaller_size = smaller_image.shape
+					height = smaller_size[0]
+					width = smaller_size[1]
+					cv2.imwrite(os.path.join(input_path, 'JPEGImages', str(item)), smaller_image)
+				else:
+					size = img.shape
+					height = size[0]
+					width = size[1]
 				tmp_size_list = []
 				tmp_size_list.append(height)
 				tmp_size_list.append(width)
 				size_list.append(tmp_size_list)
 				#print(height, width)
+				print('Picture: ' + str(item))
 			elif isinstance(item, list):
-				#print('List item: ' + str(item))
+				print('List item: ' + str(item))
 				# Check if the length is as expected
 				if len(item) == 5:
 					#print(item[0])
-					item[0] = int(float(item[0].replace("%", ""))*0.01 * width)
-					#print(item[0])
-					#print(item[1])
-					item[1] = int(float(item[1].replace("%", ""))*0.01 * height)
-					#print(item[1])
-					#print(item[2])
-					item[2] = item[0] + (int(float(item[2].replace("%", ""))*0.01 * width))
-					if item[2] > width:
-						print('!!! TOO LARGE !!!')
-						#print(width)
+					if isinstance(item[0], unicode):
+						item[0] = int(float(item[0].replace("%", ""))*0.01 * width)
+						#if item[0] > width:
+						#	print('!!! X1 TOO LARGE !!!')
+						#	print(height)
+						#	print(item[0])                            
+						#print(item[0])
+						#print(item[1])
+						item[1] = int(float(item[1].replace("%", ""))*0.01 * height)
+						#print(item[1])
 						#print(item[2])
-						item[2] = width
-					#print(item[2])
-					#print(item[3])
-					item[3] = item[1] + (int(float(item[3].replace("%", ""))*0.01 * height))
-					#print(item[3])
-					#print(item[4])
+						item[2] = int(item[0] + (float(item[2].replace("%", ""))*0.01 * width))
+						if item[2] > width:
+							print('!!! X2 TOO LARGE !!!')
+							print(width)
+							print(item[2])
+							item[2] = width
+							print(item[2])
+						#print(item[3])
+						item[3] = int(item[1] + (float(item[3].replace("%", ""))*0.01 * height))
+						#print(item[3])
+						#print(item[4])
 					# Normalize the classes
-					if "_" in item[4]:
+					if 'table' in item[4]:
+						item[4] = 'table'
+					elif 'column' in item[4] or 'colunm' in item[4]:
+						item[4] = 'column'
+					elif 'row' in item[4]:
+						item[4] = 'row'
+					elif 'header' in item[4]:
+						item[4] = 'header'
+					elif "_" in item[4]:
 						item[4] = item[4].split("_", 1)[0]
 						#print(item[4])
 					tmp_position_list = []
@@ -303,8 +370,14 @@ def create_dataset():
 	print(df_merged.shape)
 
 	# 5) Create the .xml file for every image
-	print('***** PART 5 - CREATE XML FILES *****')
-	create_xml(df_merged)
+	if options.library == 'mxnet':
+		print('***** PART 5 - CREATE XML FILES *****')
+		create_xml(df_merged)
+	elif options.library == 'keras':
+		print('***** PART 5 - CREATE TXT FILES *****')
+		create_txt(df_merged)
+	else:
+		print('!!!!! NO CORRECT LIBRARY USED !!!!!')
 
 	# 6) Create training and test data set
 	# Randomly sample 60% of your dataframe
@@ -322,7 +395,9 @@ def create_dataset():
 	# Write training and test files out
 	df_trainval.to_csv(os.path.join(input_path,'ImageSets','Main','trainval.txt'), header=None, index=None, sep=' ', mode='a')
 	df_test.to_csv(os.path.join(input_path,'ImageSets','Main','test.txt'), header=None, index=None, sep=' ', mode='a')
-
+	print('***** PART 7 - CLEANUP *****')
+	shutil.rmtree(os.path.join(input_path, 'Raw', 'Out'))
+	print('***** SCRIPT FINISHED *****')
 
 def main():
 	create_dataset()

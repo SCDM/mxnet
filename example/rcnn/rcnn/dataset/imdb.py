@@ -157,8 +157,6 @@ class IMDB(object):
         :return: roidb: [image_index]['boxes', 'gt_classes', 'gt_overlaps', 'flipped']
         """
         logger.info('%s append flipped images to roidb' % self.name)
-        print(self.num_images)
-        print(len(roidb))
         assert self.num_images == len(roidb)
         for i in range(self.num_images):
             roi_rec = roidb[i]
@@ -167,8 +165,7 @@ class IMDB(object):
             oldx2 = boxes[:, 2].copy()
             boxes[:, 0] = roi_rec['width'] - oldx2 - 1
             boxes[:, 2] = roi_rec['width'] - oldx1 - 1
-            print(roi_rec['image'])
-            print(boxes)
+            print(roi_rec)
             print(boxes[:, 0])
             print(boxes[:, 2])
             assert (boxes[:, 2] >= boxes[:, 0]).all()

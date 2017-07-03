@@ -18,6 +18,26 @@ In order to run gpu support, install Cuda and Cudnn
 * Cuda 8.0
 * Cudnn 5.1
 
+1. Startup EC2 machine
+
+    1.1. Training: Deepdf-AI-Platform (Machine is off when it is not training - Need to start it first)
+    
+    1.2. Production: Deepdf-AI-Platform-Production
+
+2) Connect to the EC2 instance
+
+    2.1) ssh -L localhost:8888:localhost:8888 -i <keypair.pem> ubuntu@<Public DNS> // Ask Max Richter for the keypair file; Get the current DNS from EC2 console
+
+3) Start the notebook
+
+    3.1) Open the Moodys-Table-Detection.ipynb
+    
+    3.2) To train the model run the first two cells
+    
+    3.2.1) In cell 2 you can define the parameters for the model. Import is to make sure that in the config.py file the config.NUM_CLASSES parameter is set correctly
+        
+    3.3) To test the model (Inference) run cells 3-5
+
 ## Why?
 There exist good implementations of Faster R-CNN yet they lack support for recent 
 ConvNet architectures. The aim of reproducing it from scratch is to fully utilize 
